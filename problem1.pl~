@@ -1,0 +1,131 @@
+% Representation of grammar. Nonterminals E, T, E', and T' are
+% represented by non(e,_), non(t,_), non(eprime,_), and non(tprime,_).
+% Terminals num, -, and * are represented by term(num,_), term(minus,_)
+% and term(mul,_). Special terminal term(eps,_) denotes the epsilon
+% symbol.
+%
+% Productions are represented with prod(N,[H|T]) --- that is,
+% arguments are the production index N and a list [H|T] where the head
+% of the list H is the left-hand-side of the production, and the tail of
+% the list T is the right-hand-side of the production. For example,
+% production E -> TE' is represented as
+% prod(1,[non(e,_),non(t,_),non(eprime,_)]).
+% E  -> TE'
+% E' -> -TE'
+% E' -> e
+% T  -> num T'
+% T' -> * num T'
+% T' -> e
+
+prod(1,[non(e,_),     non(t,_),non(eprime,_)]).
+prod(2,[non(eprime,_),term(minus,_),non(t,_),non(eprime,_)]).
+prod(3,[non(eprime,_),term(eps,_)]).
+prod(4,[non(t,_),     term(num,_),non(tprime,_)]).
+prod(5,[non(tprime,_),term(mul,_),term(num,_),non(tprime,_)]).
+prod(6,[non(tprime,_),term(eps,_)]).
+
+
+% LL(1) Parsing table.
+% epxand(non(e,_),term(num,_),1) stands for expand nonterminal E by
+% production E -> TE' on terminal num.
+
+% YOUR CODE HERE.
+% Complete the LL(1) parsing table for the grammar.
+expand(non(e,_),     term(num,_),  1).
+expand(non(eprime,_),term(minus,_),2).
+expand(non(eprime,_),term(end,_),  3).
+expand(non(t,_),     term(num,_),  4).
+expand(non(tprime,_),term(mul,_),  5).
+expand(non(tprime,_),term(minus,_),6).
+expand(non(tprime,_),term(end,_),  6).
+
+
+% sample inputs
+input0([3,-,5]).
+input1([3,-,5,*,7,-,18]).
+input2([1,-,5,*,7,*,2,-,10]).
+input3([1,+,9]).
+input4([100,-,1,*,2,*,3,-4,*,5,-,6,-,7,*,10,*,11,*,12]).
+input5([100,-,1,*,2,*,3,-,4,*,5,-,6,-,7,*,10,*,11,*,12]).
+input([3,-,5]).
+input([3,-,5,*,7,-,18]).
+input([1,-,5,*,7,*,2,-,10]).
+input([1,+,9]).
+input([100,-,1,*,2,*,3,-4,*,5,-,6,-,7,*,10,*,11,*,12]).
+input([100,-,1,*,2,*,3,-,4,*,5,-,6,-,7,*,10,*,11,*,12]).
+
+
+% YOUR CODE HERE.
+% Write transform(L,R): it takes input list L and transforms it into a
+% list where terminals are represented with term(...), as well
+% as adds the end-of-input marker. The tranformed list is given
+% in unbound variable R.
+% E.g., transform([3,-,5],R).
+% R = [term(num,3),term(minus,_),term(num,5),term(end,_)]
+transform([], R)      :- R = [term(end,_)].
+transform([L|List], Z):- integer(L),  Z = [term(num,L)|M],   transform(List, M).
+transform([L|List], Z):- L == +,      Z = [term(add,_)|M],   transform(List, M).
+transform([L|List], Z):- L == -,      Z = [term(minus,_)|M], transform(List, M).
+transform([L|List], Z):- L == *,      Z = [term(mul,_)|M],   transform(List, M).
+transform([L|List], Z):- L == /,      Z = [term(div,_)|M],   transform(List, M).
+transform([L|List], Z):- L == ^,      Z = [term(pow,_)|M],   transform(List, M).
+
+
+% Part 1.
+% Write parse(L,ProdSeq): it takes input list L and produces the
+% production sequence applied by the predictive parser
+% E.g., input0(L),parse(L,ProdSeq).
+% ProdSeq = [1, 4, 6, 2, 4, 6, 3].
+doparse([term(end,_)], P, []) :-                    P = [].
+doparse(L, P, [term(eps,_)|List2]) :-		    doparse(L, P, List2).
+doparse([term(X,_)|List1], P, [term(X,_)|List2]) :- doparse(List1, P, List2).
+doparse([L|List1], P, [non(X,_)|List2]) :-	    expand(non(X,_), L, Z),
+	                                            prod(Z, [non(X,_)|Y]),
+						    append(Y, List2, Result),
+						    doparse([L|List1], Q, Result),
+					            P = [Z|Q].
+parse(L, P) :- transform(L, X), doparse(X, P, [non(e,_)]).
+
+% Part 2.
+% Write parseAndCompute(L,ProdSpec,V): it takes input L and produces the
+% production sequence in unbound variable ProdSpec and the value of the
+% expression in V.
+% E.g., input0(L),parse(L,ProdSeq,V).
+% ProdSeq = [1, 4, 6, 2, 4, 6, 3]
+% V = -2.
+%
+%when end is hit return values
+doparseandcompute([term(end,_)], P, [], V, [_,false], [_,false]) :-	     P = [],
+									     V = 0.
+doparseandcompute([term(end,_)], P, [], V, [_,false], [T,true]) :-	     P = [],
+									     V = T.
+doparseandcompute([term(end,_)], P, [], V, [E,true] , [_,false]) :-	     P = [],
+									     V = E.
+doparseandcompute([term(end,_)], P, [], V, [E,true] , [T,true]) :-	     P = [],
+									     V is E - T.
+%when eps is hit, move to next value in list
+doparseandcompute(L, P, [term(eps,_)|List2], V,	[_, false] , [_, false]) :-  doparseandcompute(L, P, List2, V, [0, false], [1, false]).
+doparseandcompute(L, P, [term(eps,_)|List2], V,	[_, false] , [T, true])  :-  doparseandcompute(L, P, List2, V, [T,true], [1, false]).
+doparseandcompute(L, P, [term(eps,_)|List2], V,	[E, true]  , [_, false]) :-  doparseandcompute(L, P, List2, V, [E,true], [1, false]).
+doparseandcompute(L, P, [term(eps,_)|List2], V,	[E, true]  , [T, true])  :-  Z is E - T,
+									     doparseandcompute(L, P, List2, V, [Z,true], [1, false]).
+%when a term is hit remove from both lists
+doparseandcompute([term(num,Value)|List1], P, [term(num,_)|List2], V, E, [_, false]) :-       doparseandcompute(List1, P, List2, V, E, [Value, true]).
+doparseandcompute([term(num,Value)|List1], P, [term(num,_)|List2], V, E, [T, true])  :-       Z is Value * T,
+											      doparseandcompute(List1, P, List2, V, E, [Z, true]).
+doparseandcompute([term(minus,_)|List1], P, [term(minus,_)|List2], V, E, T) :-                doparseandcompute(List1, P, List2, V, E, T).
+doparseandcompute([term(mul,_)|List1], P, [term(mul,_)|List2], V, E, T) :-		      doparseandcompute(List1, P, List2, V, E, T).
+%when a non terminal is hit, add new value to list2
+doparseandcompute([L|List1], P, [non(X,_)|List2], V, E, T) :-	             expand(non(X,_), L, Z),
+	                                                                     prod(Z, [non(X,_)|Y]),
+						                             append(Y, List2, Result),
+						                             doparseandcompute([L|List1], Q, Result, V, E, T),
+					                                     P = [Z|Q].
+parseAndCompute(L, P, V) :- transform(L, X), doparseandcompute(X, P, [non(e,_)], V, [0, false], [1,false]).
+parse(L, P, V) :- parseAndCompute(L, P, V).
+
+
+% Use predicate attribute(...). It computes the value as the expression
+% is being parsed. Use the second argument of non(_,_) and term(_,_)
+% to store the expression values. The expression value would be computed
+% in variable V of the topmost nonterminal E: non(e,V).

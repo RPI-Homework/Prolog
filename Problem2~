@@ -1,0 +1,10 @@
+pway(a, b, 10).
+pway(b, c, 15).
+pway(d, c, 5).
+pway(d, b, 10).
+
+
+nextpath(X, Y, P, N):- same(X, Y).
+nextpath(X, Y, [P,M], N):- pway(X, Z, N), nextpath(Z, Y, M, N).
+nextpath(X, Y, [P,M], N):- pway(Z, X, N), nextpath(Z, Y, M, N).
+solve(X, Y, P, N):-
